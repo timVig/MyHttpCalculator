@@ -20,8 +20,10 @@ public class CalculatorClient {
     static boolean reloaded = false;
     static HttpClient client = HttpClient.newHttpClient();
     static HttpResponse.BodyHandler<String> handler = HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8);
-    static String local = "http://localhost:8001/Calculator/operations/";
+    static String local = "http://localhost:8001";
+    static String httplink = "/Calculator/operations/";
     static URI uri;
+    static EncryptionHandler encrypter = new EncryptionHandler();
 
     public static void main(String[] args) {
         startUI();
@@ -67,7 +69,8 @@ public class CalculatorClient {
     }
 
     public static String sendRequest( String op, double term1, double term2 ){
-        uri = URI.create( local + op + "/" + term1 +  "/" + term2 );
+        String request = local + httplink +  op + "/" + term1 +  "/" + term2;
+        uri = URI.create( request );
 
         HttpRequest.Builder build = HttpRequest.newBuilder(uri).
                 version(HttpClient.Version.HTTP_1_1).
@@ -77,7 +80,7 @@ public class CalculatorClient {
 
         try { reply = client.send( build.build(), handler ); }
         catch (IOException | InterruptedException e) { e.printStackTrace(); }
-        String response = reply.body();
+        String response = encrypter.decrypt( reply.body() ); //decrypt response
         return response;
     }
 

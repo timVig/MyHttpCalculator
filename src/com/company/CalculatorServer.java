@@ -2,6 +2,7 @@ package com.company;
 import com.sun.net.httpserver.*;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -12,11 +13,13 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class CalculatorServer {
     private final HttpServer server;
+    private HashMap< Trio, String > memoize;
 
     public CalculatorServer(Executor exec) throws IOException {
         server = HttpServer.create();
         server.setExecutor(exec);
         server.createContext( "/Calculator/operations", new CommandHandler( this ) );
+        memoize = new HashMap<>();
     }
 
     public void start() throws IOException {
@@ -30,10 +33,12 @@ public class CalculatorServer {
     private static class CommandHandler implements HttpHandler {
         private CalculatorServer server;
         private Calculator calculator;
+        private EncryptionHandler encrypter;
 
         CommandHandler( CalculatorServer s1 ) {
             this.server = s1;
             this.calculator = new Calculator();
+            this.encrypter = new EncryptionHandler();
         }
 
         @Override
@@ -55,12 +60,21 @@ public class CalculatorServer {
                 Double op2 = Double.parseDouble( commands.get(4) );
                 Double answer = 0.0;
 
-                if( commands.get(2).equals("add") ){ answer = calculator.add( op1, op2 ); }
-                if( commands.get(2).equals("sub") ){ answer = calculator.sub( op1, op2 ); }
-                if( commands.get(2).equals("mul") ){ answer = calculator.multiply( op1, op2 ); }
-                if( commands.get(2).equals("div") ){ answer = calculator.divide( op1, op2 ); }
+                String responseStr;
+                Trio trio = new Trio( op1, op2, commands.get(2) );
 
-                String responseStr = String.valueOf(answer);
+                if( this.server.memoize.containsKey(trio) ){
+                    responseStr = this.server.memoize.get(trio);
+                } else {
+                    if( commands.get(2).equals("add") ){ answer = calculator.add( op1, op2 ); }
+                    if( commands.get(2).equals("sub") ){ answer = calculator.sub( op1, op2 ); }
+                    if( commands.get(2).equals("mul") ){ answer = calculator.multiply( op1, op2 ); }
+                    if( commands.get(2).equals("div") ){ answer = calculator.divide( op1, op2 ); }
+                    responseStr = String.valueOf(answer); //encrypt data before sending it back
+                    this.server.memoize.put(trio, responseStr);
+                }
+
+                responseStr = encrypter.encrypt(responseStr);
                 var response = responseStr.getBytes(UTF_8);
                 exchange.sendResponseHeaders(HTTP_OK, response.length);
                 exchange.getResponseBody().write(response);
@@ -72,5 +86,23 @@ public class CalculatorServer {
         var server = new CalculatorServer(Executors.newSingleThreadScheduledExecutor());
         server.start();
         Runtime.getRuntime().addShutdownHook(new Thread(server::stop));
+    }
+}
+
+class Trio{
+    double term1; double term2; String operation;
+    public Trio( double x, double y, String s ){
+        this.term1 = x;
+        this.term2 = y;
+        this.operation = s;
+    }
+
+    @Override
+    public int hashCode(){ return (int) ( 31.0 * term1 + term2 ) + operation.charAt(0); }
+
+    @Override
+    public boolean equals( Object o ){
+        Trio trio = (Trio) o;
+        return trio.term1 == this.term1 && trio.term2 == this.term2 && this.operation.equals(trio.operation);
     }
 }
