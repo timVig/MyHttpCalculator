@@ -1,7 +1,11 @@
 package com.company;
 import com.sun.net.httpserver.*;
+
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -45,6 +49,19 @@ public class CalculatorServer {
         public void handle(HttpExchange exchange) throws IOException {
             try( exchange ){ //no need to check headers, all are GET requests
                 var cmd2 = exchange.getRequestURI().toString();
+                var body = exchange.getRequestBody();
+                InputStreamReader inRead = new InputStreamReader( body, UTF_8);
+                BufferedReader bufferRead = new BufferedReader(inRead);
+
+                int b;
+                StringBuilder sb = new StringBuilder(512);
+                while( (b = bufferRead.read()) != -1 ){
+                    sb.append( (char) b );
+                }
+
+                bufferRead.close();
+                inRead.close();
+                cmd2 = cmd2 + encrypter.decrypt( sb.toString(), 1); //decrypt using caesar
                 List<String> commands = new LinkedList<>();
                 String str = "";
 
@@ -74,7 +91,7 @@ public class CalculatorServer {
                     this.server.memoize.put(trio, responseStr);
                 }
 
-                responseStr = encrypter.encrypt(responseStr);
+                responseStr = encrypter.encrypt(responseStr, 2); //encrypt response using letter substitution
                 var response = responseStr.getBytes(UTF_8);
                 exchange.sendResponseHeaders(HTTP_OK, response.length);
                 exchange.getResponseBody().write(response);

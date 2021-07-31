@@ -69,18 +69,20 @@ public class CalculatorClient {
     }
 
     public static String sendRequest( String op, double term1, double term2 ){
-        String request = local + httplink +  op + "/" + term1 +  "/" + term2;
+        String request = local + httplink;
         uri = URI.create( request );
+        String encrypted = encrypter.encrypt( op + "/" + term1 +  "/" + term2, 1 ); //encrypt using caesarCipher
+
+        HttpRequest.BodyPublisher b1 = HttpRequest.BodyPublishers.ofString( encrypted );
 
         HttpRequest.Builder build = HttpRequest.newBuilder(uri).
-                version(HttpClient.Version.HTTP_1_1).
-                setHeader("Accept", "application/json");
+                version(HttpClient.Version.HTTP_1_1).POST(b1).setHeader("Accept", "application/json");
 
         HttpResponse<String> reply = null;
 
         try { reply = client.send( build.build(), handler ); }
         catch (IOException | InterruptedException e) { e.printStackTrace(); }
-        String response = encrypter.decrypt( reply.body() ); //decrypt response
+        String response = encrypter.decrypt( reply.body(), 2 ); //decrypt using letter substitution cipher
         return response;
     }
 
